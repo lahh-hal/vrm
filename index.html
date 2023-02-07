@@ -1,0 +1,66 @@
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.6.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.2.3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-expression-recognition@0.2.3"></script>
+    <script src="https://unpkg.com/@pixiv/three-vrm@0.13.0/dist/three-vrm.js"></script>
+  </head>
+  <body>
+    <div>
+      <input type="file" id="vrmFileInput">
+      <input type="file" id="backgroundFileInput">
+      <video id="video" width="640" height="480" style="display:none;"></video>
+      <canvas id="canvas" width="640" height="480"></canvas>
+    </div>
+    <script>
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+
+      const vrmFileInput = document.getElementById('vrmFileInput');
+      const backgroundFileInput = document.getElementById('backgroundFileInput');
+
+      const faceLandmarks = new faceapi.FaceLandmarks68Net();
+      const faceExpressions = new faceapi.FaceExpressionsNet();
+      
+      let vrm;
+
+      vrmFileInput.addEventListener('change', async () => {
+        vrm = await VRM.from(vrmFileInput.files[0]);
+        vrm.enableBlendShape();
+      });
+
+      backgroundFileInput.addEventListener('change', async () => {
+        ctx.drawImage(await loadImage(
+          backgroundFileInput.files[0]), 0, 0, canvas.width, canvas.height);
+      });
+
+      navigator.getUserMedia = navigator.getUserMedia ||
+        navigator.webkitGetUserMedia ||
+        navigator.mozGetUserMedia;
+
+      navigator.getUserMedia({video: true},
+        function(stream) {
+          video.srcObject = stream;
+          video.play();
+        },
+        function(err) {
+          console.log("An error occurred! " + err);
+        }
+      );
+
+      async function detectFaceInRealTime() {
+        const predictions = await faceLandmarks.detect(video);
+        if (predictions.length > 0) {
+          const landmarks = predictions[0].landmarks;
+          const expressions = await faceExpressions.predict(video, landmarks);
+          if (vrm) {
+            vrm.update(landmarks, expressions);
+          }
+        }
+        requestAnimationFrame(detectFaceInRealTime);
+      }
+      detectFaceInRealTime();
+    </script>
+  </body>
+</html>
